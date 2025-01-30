@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔥饿了吗🌋</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #ab281a; /* 麦当劳红色 */
+            text-align: center;
+            font-family: Arial, sans-serif;
+            position: relative;
+        }
+
+        #controls {
+            position: fixed;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+        }
+
+        button {
+            font-size: 20px;
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        #addFries { background-color: #ffcc00;border: 2px solid black; }
+        #addSalt { background-color: #ffffff; border: 2px solid black; }
+        #eatMode { background-color: #ff6600; color: white; border: 2px solid black;}
+
+        /* 评分文字 */
+        .level-label {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 24px;
+            color: rgba(255, 255, 255, 0.472);
+            font-weight: bold;
+            z-index: 1;
+        }
+
+        /* 默认隐藏小猪鼠标 */
+        .pig-cursor {
+            position: absolute;
+            width: 100px;
+            height: 100px;
+            background: url('https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEhLaNTtp32VdyxUQPNz5Rp6zPrFJWmKLwm0tMxgU5sI3n5wPEUlzyTdnSjRBoFyW7fvRg-JLUB1k-e3Pq9mXX573Ionmc4SSOthlD4BdzyLEKPZXedrrayIKIGynmbR9VoJeqgc2s6zd0IZ/s400/bird_kamome.png') 
+                        no-repeat center / cover; /* 保持清晰度 */
+            pointer-events: none; /* 让鼠标能点到物体 */
+            transform-origin: center center;
+            transition: transform 0.2s ease-in-out;
+            display: none; /* 默认隐藏 */
+        }
+
+        /* 开炫模式时，显示小猪鼠标并隐藏默认鼠标 */
+        .eating-mode {
+            cursor: none; /* 隐藏默认鼠标 */
+        }
+
+        .eating-mode .pig-cursor {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 控制按钮 -->
+    <div id="controls">
+        <button id="addFries">🍟 长按掉落薯条</button>
+        <button id="addSalt">🧂 加盐记得搅匀</button>
+        <button id="eatMode">😈 点我变成海鸥</button>
+    </div>
+
+    <!-- 评分线 & 标签 -->
+    <div class="level-label" style="top: 68vh;">--------小薯--------</div>
+    <div class="level-label" style="top: 48vh;">--------中薯--------</div>
+    <div class="level-label" style="top: 28vh;">--------大薯--------</div>
+
+    <!-- 小猪鼠标 -->
+    <div id="pigCursor" class="pig-cursor"></div>
+
+    <script>
+        // 初始化 Matter.js
+        const { Engine, Render, Runner, World, Bodies, Mouse, MouseConstraint } = Matter;
+        const engine = Engine.create();
+        const world = engine.world;
+
+        // 创建渲染器
+        const render = Render.create({
+            element: document.body,
+            engine: engine,
+            options: {
+                width: window.innerWidth,
+                height: window.innerHeight,
+                wireframes: false,
+                background: '#ab281a' 
+            }
+        });
+
+        Render.run(render);
+        const runner = Runner.create();
+        Runner.run(runner, engine);
+
+        // 添加地面 & 墙壁
+        const ground = Bodies.rectangle(window.innerWidth / 2, window.innerHeight - 10, window.innerWidth, 20, { 
+            isStatic: true,
+            render: { fillStyle: "#ffcc00" }
+        });
+
+        const leftWall = Bodies.rectangle(-10, window.innerHeight / 2, 20, window.innerHeight, { isStatic: true });
+        const rightWall = Bodies.rectangle(window.innerWidth + 10, window.innerHeight / 2, 20, window.innerHeight, { isStatic: true });
+
+        World.add(world, [ground, leftWall, rightWall]);
+
+        let friesInterval; // 定时器变量
+        let eatMode = false; // 吃薯条模式
+        let friesList = []; // 记录薯条列表
+        let pigSize = 1.0; // 小猪初始大小
+
+        function addFries() {
+            const x = Math.random() * (window.innerWidth - 100) + 50;
+            const angle = Math.random() * Math.PI;
+
+            const fries = Bodies.polygon(x, 45, 4, 45, { 
+                restitution: 0.2,  
+                friction: 5,  
+                density: 0.5,  
+                angle: angle, 
+                render: {
+                    sprite: {
+                        texture: "https://www.pngall.com/wp-content/uploads/4/French-Fries-PNG-Photo.png",
+                        xScale: 0.3,
+                        yScale: 0.3
+                    }
+                }
+            });
+
+            World.add(world, fries);
+            friesList.push(fries);
+        }
+
+        // 长按按钮：持续掉落薯条
+        document.getElementById("addFries").addEventListener("mousedown", function() {
+            addFries();
+            friesInterval = setInterval(addFries, 120);
+        });
+
+        document.getElementById("addFries").addEventListener("mouseup", function() {
+            clearInterval(friesInterval);
+        });
+
+        document.getElementById("addFries").addEventListener("mouseleave", function() {
+            clearInterval(friesInterval);
+        });
+        // **加盐按钮功能 🧂**
+        document.getElementById("addSalt").addEventListener("click", function() {
+                    for (let i = 0; i < 10; i++) {
+                        const x = Math.random() * window.innerWidth;
+                        const salt = Bodies.circle(x, 20, 2, {
+                            restitution: 0.01, // 让盐不会跳太高
+                            friction: 500, // 适当的摩擦力
+                            density: 0.000001, // 让盐比较轻
+                            render: { fillStyle: "#ffffff" } // 白色颗粒
+                        });
+
+                        World.add(world, salt);
+                    }
+                });
+                    // 添加鼠标拖拽交互
+            const mouse = Mouse.create(render.canvas);
+            const mouseConstraint = MouseConstraint.create(engine, {
+                mouse: mouse,
+                constraint: {
+                    stiffness: 0.2,
+                    render: { visible: false }
+                }
+            });
+
+            World.add(world, mouseConstraint);
+            render.mouse = mouse;
+            
+                // 开炫模式
+        document.getElementById("eatMode").addEventListener("click", function () {
+            eatMode = !eatMode;
+            if (eatMode) {
+                document.body.classList.add("eating-mode");
+                document.getElementById("eatMode").textContent = "🤤 吃饱啦..";
+            } else {
+                document.body.classList.remove("eating-mode");
+                document.getElementById("eatMode").textContent = "😈 点我变成海鸥";
+                pigSize = 1.0; // 退出模式后重置大小
+                document.getElementById("pigCursor").style.transform = `scale(${pigSize})`;
+            }
+        });
+
+        // 监听鼠标移动，更新小猪位置
+        document.addEventListener("mousemove", function (event) {
+            if (!eatMode) return;
+
+            pigCursor.style.left = `${event.clientX - 25}px`;
+            pigCursor.style.top = `${event.clientY - 25}px`;
+
+            for (let i = friesList.length - 1; i >= 0; i--) {
+                const fries = friesList[i];
+                const x = fries.position.x;
+                const y = fries.position.y;
+
+                if (Math.abs(x - event.clientX) < 30 && Math.abs(y - event.clientY) < 30) {
+                    World.remove(world, fries);
+                    friesList.splice(i, 1);
+                    if (pigSize < 10) {
+                        pigSize += 0.1;
+                        pigCursor.style.transform = `scale(${pigSize})`;
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>
